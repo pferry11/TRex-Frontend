@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TRex Dashboard</title>
+    <style>
+
+        #durationInput[disabled] {
+    background-color: #f0f0f0;
+    color: #666;
+    cursor: not-allowed;
+}
+
+#durationInput.infinity::placeholder {
+    color: #666;
+    font-size: 18px;
+    text-align: center;
+}
+.value-cell {
+    text-align: right;
+    width: 140px;
+}	
+	
+.controls-bar {
+    background: #1a1a1a;
+    padding: 15px 20px;
+    border-bottom: 2px solid #333;
+    border-radius: 0 0 8px 8px; /* rounded bottom corners */
+    display: flex;
+    gap: 10px;
+    justify-content: flex-start;
+    align-items: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4); /* subtle depth */
+}
+
+.controls-bar button {
+    background: #2a2a2a;
+    color: #fff;
+    border: 1px solid #444;
+    padding: 10px 22px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 15px;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.controls-bar button:hover {
+    background: #3a3a3a;
+}
+
+.controls-bar button:active {
+    transform: scale(0.97);
+}
+
+.row-3col {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    padding: 20px;
+}
+	.value-cell {
+    text-align: right;
+    width: 120px;
+}
+
+.fade {
+    animation: subtlePulse 0.25s ease-out;
+}
+
+@keyframes subtlePulse {
+    0%   { opacity: 0.85; }
+    100% { opacity: 1; }
+}
+
+
+        /* Status colours */
+        .status-ok { color: #4caf50; }
+        .status-idle { color: #888; }
+        .status-warn { color: #ff9800; }
+
+        /* Icons */
+        .icon { margin-right: 6px; opacity: 0.8; }
+
+
+
+        /* Layout */
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #0d0d0d;
+            color: #e0e0e0;
+        }
+
+        header {
+            background: #1a1a1a;
+            padding: 15px;
+            font-size: 22px;
+            font-weight: bold;
+            text-align: center;
+            border-bottom: 2px solid #333;
+        }
+
+        .running-banner {
+            background: #0f3;
+            color: #000;
+            text-align: center;
+            padding: 10px;
+            font-weight: bold;
+            display: none;
+        }
+
+        .container {
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .panel {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            flex: 1;
+        }
+
+        .controls button {
+            background: #333;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            margin-right: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .controls button:hover { background: #444; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        table td {
+            padding: 6px;
+            border-bottom: 1px solid #333;
+        }
+
+        .placeholder {
+            margin: 20px;
+            padding: 40px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            text-align: center;
+            color: #555;
+            font-style: italic;
+        }
+
+        .link-up { color: #4caf50; font-weight: bold; }
+        .link-down { color: #f44336; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<header>TRex Traffic Dashboard</header>
+<div id="healthStatus" style="text-align:center; padding:8px; font-weight:bold;"></div>
+
+<div id="runningBanner" class="running-banner">TRAFFIC RUNNING</div>
+
+<div class="controls-bar">
+
+    <!-- Profile selector -->
+    <select id="profileSelect">
+        <option value="/opt/trex-3.06/stl/udp_1pkt.py">UDP 1 Packet</option>
+        <option value="/opt/trex-3.06/stl/udp_9k.py">UDP 9K</option>
+        <option value="/opt/trex-3.06/stl/custom_profile.py">Custom Profile</option>
+    </select>
+
+<!-- Rate -->
+<div style="display:flex; gap:6px; align-items:center;">
+    <input id="rateValue" type="number" min="1" value="1" style="width:80px;">
+    
+    <select id="rateUnit" style="width:90px;">
+        <option value="pps">pps</option>
+        <option value="kpps">kpps</option>
+        <option value="mpps" selected>mpps</option>
+        <option value="gbps">gbps</option>
+        <option value="%">%</option>
+    </select>
+</div>
+
+    <!-- Ports -->
+    <input id="portsInput" type="text" placeholder="Ports (e.g. 0,1)" style="width:100px;">
+
+    <!-- Duration -->
+    <input id="durationInput" type="number" placeholder="Duration (sec)" style="width:120px;">
+        <label class="toggle">
+            <input type="checkbox" id="continuousToggle">
+            <span>Continuous Mode</span>
+        </label>
+
+    <!-- Buttons -->
+    <button onclick="startTraffic()">Start</button>
+    <button onclick="stopTraffic()">Stop</button>
+</div>
+
+<div class="row-3col">
+
+    <!-- System Info Panel -->
+    <div class="panel" id="systemInfo">
+        <h3>System Info</h3>
+        <table id="systemTable"></table>
+    </div>
+
+    <!-- Port 0 Stats -->
+    <div class="panel">
+        <h3>Port 0 <span id="link0"></span></h3>
+        <table id="stats0"></table>
+    </div>
+
+    <!-- Port 1 Stats -->
+    <div class="panel">
+        <h3>Port 1 <span id="link1"></span></h3>
+        <table id="stats1"></table>
+    </div>
+
+</div>
+
+<div class="placeholder">Graphs will go here in V3</div>
+
+<script>
+
+async function checkHealth() {
+    try {
+        const res = await fetch("http://10.0.0.26:8000/health");
+        const data = await res.json();
+
+        const trexUp =
+            data.trex_process === "running" &&
+            (data.trex_rpc === "ok" || data.trex_rpc === "reconnected");
+
+        if (trexUp) {
+            healthStatus.innerHTML = "🟢 TRex Running";
+            healthStatus.style.color = "#4caf50";
+            setControlsEnabled(true);
+        } 
+        else if (data.trex_process === "running") {
+            healthStatus.innerHTML = "🟡 TRex Running (RPC Error)";
+            healthStatus.style.color = "#ff9800";
+            setControlsEnabled(false);
+        } 
+        else {
+            healthStatus.innerHTML = "🔴 TRex Not Running";
+            healthStatus.style.color = "#f44336";
+            setControlsEnabled(false);
+        }
+
+    } catch {
+        healthStatus.innerHTML = "🔴 Backend Offline";
+        healthStatus.style.color = "#f44336";
+        setControlsEnabled(false);
+    }
+}
+
+setInterval(checkHealth, 3000);
+checkHealth();
+
+let lastStats = { 0: {}, 1: {} };
+let trafficTimeout = null;
+
+function startTraffic() {
+    const profile = document.getElementById("profileSelect").value;
+
+    // NEW RATE BUILDER
+    const rateValue = document.getElementById("rateValue").value.trim();
+    const rateUnit = document.getElementById("rateUnit").value;
+    let rate = "";
+    if (rateValue !== "") {
+        rate = rateValue + rateUnit;   // e.g. "1gbps"
+    }
+
+    const duration = document.getElementById("durationInput").value.trim();
+    const ports = document.getElementById("portsInput").value.trim();
+    const continuous = document.getElementById("continuousToggle").checked;
+
+    let url = `http://10.0.0.26:8000/start?profile=${encodeURIComponent(profile)}`;
+
+    // Rate: blank → default (handled by backend)
+    if (rate !== "") {
+        url += `&rate=${encodeURIComponent(rate)}`;
+    }
+
+    // Ports: blank → default ports (handled by backend)
+    if (ports !== "") {
+        url += `&ports=${encodeURIComponent(ports)}`;
+    }
+
+    // Duration: only include if NOT continuous mode
+    if (!continuous && duration !== "") {
+        url += `&duration=${encodeURIComponent(duration)}`;
+    }
+
+    fetch(url)
+        .then(res => res.json())
+        .then(data => console.log("Start response:", data))
+        .catch(err => console.error("Start error:", err));
+}
+function stopTraffic() { fetch("http://10.0.0.26:8000/stop"); }
+
+function formatNumber(n) {
+    if (typeof n !== "number") return n;
+    return Math.round(n).toLocaleString();
+}
+function formatFloat(n, decimals = 2) {
+    if (typeof n !== "number") return n;
+    return n.toFixed(decimals);
+}
+
+function iconUp() { return `<span class="icon">⬆️</span>`; }
+function iconDown() { return `<span class="icon">⬇️</span>`; }
+
+async function updateStats() {
+    try {
+        const res = await fetch("http://10.0.0.26:8000/stats");
+        const data = await res.json();
+
+        updatePort(0, data["0"]);
+        updatePort(1, data["1"]);
+		updateSystemInfo(data["global"]);
+
+        // Traffic running logic
+        const running = data["0"].tx_pps > 100 || data["1"].tx_pps > 100;
+
+        if (running) {
+            document.getElementById("runningBanner").style.display = "block";
+
+            // Reset timeout
+            clearTimeout(trafficTimeout);
+            trafficTimeout = setTimeout(() => {
+                document.getElementById("runningBanner").style.display = "none";
+            }, 2000);
+        }
+
+    } catch (e) {
+        console.log("Stats error:", e);
+    }
+}
+
+function updatePort(port, stats) {
+    // If TRex is down or stats missing, use safe defaults
+    if (!stats || Object.keys(stats).length === 0) {
+        stats = {
+            tx_pps: 0,
+            rx_pps: 0,
+            tx_bps: 0,
+            rx_bps: 0,
+            tx_util: 0,
+            rx_util: 0,
+            link: false
+        };
+    }
+    const table = document.getElementById("stats" + port);
+    const link = document.getElementById("link" + port);
+
+    table.innerHTML = "";
+
+    // Determine link state
+    let linkHTML = "";
+    if (stats.link === true) {
+        linkHTML = `<span class="link-up">🟢 UP</span>`;
+    } else if (stats.tx_pps > 0 || stats.rx_pps > 0) {
+        linkHTML = `<span class="status-warn">🟡 LOOPBACK</span>`;
+    } else {
+        linkHTML = `<span class="link-down">🔴 DOWN</span>`;
+    }
+    link.innerHTML = linkHTML;
+
+    const rows = [
+        [iconUp() + "TX PPS", formatNumber(stats.tx_pps), stats.tx_pps > 0],
+        [iconDown() + "RX PPS", formatNumber(stats.rx_pps), stats.rx_pps > 0],
+        [iconUp() + "TX BPS", formatNumber(stats.tx_bps), stats.tx_bps > 0],
+        [iconDown() + "RX BPS", formatNumber(stats.rx_bps), stats.rx_bps > 0],
+        ["TX Util (L1)", formatFloat(stats.tx_util, 2), stats.tx_util > 0],
+        ["RX Util (L1)", formatFloat(stats.rx_util, 2), stats.rx_util > 0]
+    ];
+
+    rows.forEach(([label, value, active], index) => {
+    const prev = lastStats[port][index];
+    const changed = prev !== value;
+
+    table.innerHTML += `
+        <tr>
+            <td><b>${label}</b></td>
+            <td class="value-cell ${active ? 'status-ok' : 'status-idle'} ${changed ? 'fade' : ''}">
+                ${value}
+            </td>
+        </tr>
+    `;
+
+    lastStats[port][index] = value;
+});
+}
+
+function updateSystemInfo(global) {
+    const table = document.getElementById("systemTable");
+    table.innerHTML = "";
+
+    // 🔹 If TRex is offline or stats missing, show a friendly message
+    if (!global || Object.keys(global).length === 0) {
+        table.innerHTML = `
+            <tr>
+                <td colspan="2" style="text-align:center; color:#888; padding:10px;">
+                    TRex is offline - no system statistics available
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    const drops = global.err_cntrs ? global.err_cntrs.rx_err : 0;
+    const errors = global.err_cntrs ? global.err_cntrs.tx_err : 0;
+
+    const rows = [
+        ["CPU Util", formatFloat(global.cpu_util, 1) + "%"],
+        ["RX CPU Util", formatFloat(global.rx_cpu_util, 1) + "%"],
+        ["TX Packets", formatNumber(global.opackets)],
+        ["RX Packets", formatNumber(global.ipackets)],
+        ["TX Bytes", formatNumber(global.obytes)],
+        ["RX Bytes", formatNumber(global.ibytes)],
+        ["Dropped Packets", formatNumber(drops)],
+        ["Errors", formatNumber(errors)]
+    ];
+
+    rows.forEach(([label, value]) => {
+        table.innerHTML += `
+            <tr>
+                <td><b>${label}</b></td>
+                <td class="value-cell fade">${value}</td>
+            </tr>
+        `;
+    });
+}
+
+function setControlsEnabled(enabled) {
+    document.getElementById("profileSelect").disabled = !enabled;
+    document.getElementById("rateValue").disabled = !enabled;
+    document.getElementById("rateUnit").disabled = !enabled;
+    document.getElementById("durationInput").disabled = !enabled;
+    document.getElementById("portsInput").disabled = !enabled;
+
+    // Disable Start/Stop buttons
+    document.querySelectorAll(".controls-bar button").forEach(btn => {
+        btn.disabled = !enabled;
+        btn.style.opacity = enabled ? "1.0" : "0.4";
+        btn.style.cursor = enabled ? "pointer" : "not-allowed";
+    });
+}
+
+const durationInput = document.getElementById("durationInput");
+const continuousToggle = document.getElementById("continuousToggle");
+
+// Enable continuous mode
+function enableContinuousMode() {
+    durationInput.value = "";
+    durationInput.disabled = true;
+    durationInput.classList.add("infinity");
+    durationInput.placeholder = "∞";
+    continuousToggle.checked = true;
+}
+
+// Disable continuous mode
+function disableContinuousMode() {
+    durationInput.disabled = false;
+    durationInput.classList.remove("infinity");
+    durationInput.placeholder = "Duration (sec)";
+
+    // Ensure valid minimum
+    if (!durationInput.value || Number(durationInput.value) < 1) {
+        durationInput.value = 1;
+    }
+    continuousToggle.checked = false;
+}
+
+// Toggle handler
+continuousToggle.addEventListener("change", () => {
+    if (continuousToggle.checked) {
+        enableContinuousMode();
+    } else {
+        disableContinuousMode();
+    }
+});
+
+// Duration input handler
+durationInput.addEventListener("input", () => {
+    const val = Number(durationInput.value);
+
+    // If user enters 0, negative, or clears → continuous mode
+    if (!val || val < 1) {
+        enableContinuousMode();
+    } else {
+        disableContinuousMode();
+    }
+});
+
+window.addEventListener("DOMContentLoaded", () => {
+    enableContinuousMode();
+});
+
+setInterval(updateStats, 1000);
+updateStats();
+</script>
+
+</body>
+</html>
