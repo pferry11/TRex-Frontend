@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TRex Dashboard</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #0d0d0d;
+            color: #e0e0e0;
+        }
+
+        header {
+            background: #1a1a1a;
+            padding: 15px;
+            font-size: 22px;
+            font-weight: bold;
+            text-align: center;
+            border-bottom: 2px solid #333;
+        }
+
+        .container {
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .panel {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            flex: 1;
+        }
+
+        .controls button {
+            background: #333;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            margin-right: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .controls button:hover {
+            background: #444;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        table td {
+            padding: 6px;
+            border-bottom: 1px solid #333;
+        }
+
+        .placeholder {
+            margin: 20px;
+            padding: 40px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            text-align: center;
+            color: #555;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+<header>TRex Traffic Dashboard</header>
+
+<div class="container">
+
+    <!-- Left Panel: Controls -->
+    <div class="panel controls">
+        <h3>Controls</h3>
+        <button onclick="startTraffic()">Start</button>
+        <button onclick="stopTraffic()">Stop</button>
+    </div>
+
+    <!-- Right Panel: Stats -->
+    <div class="panel">
+        <h3>Live Stats</h3>
+        <table id="statsTable"></table>
+    </div>
+
+</div>
+
+<div class="placeholder">
+    Graphs will go here in V3
+</div>
+
+<script>
+function startTraffic() {
+    fetch("http://10.0.0.26:8000/start");
+}
+
+function stopTraffic() {
+    fetch("http://10.0.0.26:8000/stop");
+}
+
+async function updateStats() {
+    try {
+        const res = await fetch("http://10.0.0.26:8000/stats");
+        const data = await res.json();
+
+        const table = document.getElementById("statsTable");
+        table.innerHTML = "";
+
+        // Show only port 0 + global for now
+        const port0 = data["0"];
+        const global = data["global"];
+
+        table.innerHTML += `<tr><td><b>TX PPS</b></td><td>${port0.tx_pps}</td></tr>`;
+        table.innerHTML += `<tr><td><b>RX PPS</b></td><td>${port0.rx_pps}</td></tr>`;
+        table.innerHTML += `<tr><td><b>TX BPS</b></td><td>${port0.tx_bps}</td></tr>`;
+        table.innerHTML += `<tr><td><b>RX BPS</b></td><td>${port0.rx_bps}</td></tr>`;
+        table.innerHTML += `<tr><td><b>CPU Util</b></td><td>${global.cpu_util}</td></tr>`;
+
+    } catch (e) {
+        console.log("Stats error:", e);
+    }
+}
+
+setInterval(updateStats, 1000);
+updateStats();
+</script>
+
+</body>
+</html>

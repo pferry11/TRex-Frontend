@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TRex Dashboard</title>
+    <style>
+        .status-ok {
+            color: #4caf50; /* green */
+            font-weight: bold;
+        }
+
+        .status-idle {
+            color: #888; /* grey */
+        }
+
+        .icon {
+            margin-right: 6px;
+            opacity: 0.8;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #0d0d0d;
+            color: #e0e0e0;
+        }
+
+        header {
+            background: #1a1a1a;
+            padding: 15px;
+            font-size: 22px;
+            font-weight: bold;
+            text-align: center;
+            border-bottom: 2px solid #333;
+        }
+
+        .container {
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .panel {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            flex: 1;
+        }
+
+        .controls button {
+            background: #333;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            margin-right: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .controls button:hover {
+            background: #444;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        table td {
+            padding: 6px;
+            border-bottom: 1px solid #333;
+        }
+
+        .placeholder {
+            margin: 20px;
+            padding: 40px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            text-align: center;
+            color: #555;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+
+<header>TRex Traffic Dashboard</header>
+
+<div class="container">
+
+    <!-- Left Panel: Controls -->
+    <div class="panel controls">
+        <h3>Controls</h3>
+        <button onclick="startTraffic()">Start</button>
+        <button onclick="stopTraffic()">Stop</button>
+    </div>
+
+    <!-- Right Panel: Stats -->
+    <div class="panel">
+        <h3>Live Stats</h3>
+        <table id="statsTable"></table>
+    </div>
+
+</div>
+
+<div class="placeholder">
+    Graphs will go here in V3
+</div>
+
+<script>
+/* -------------------------
+   Control Buttons
+------------------------- */
+function startTraffic() {
+    fetch("http://10.0.0.26:8000/start");
+}
+
+function stopTraffic() {
+    fetch("http://10.0.0.26:8000/stop");
+}
+
+/* -------------------------
+   Formatting Helpers
+------------------------- */
+function formatNumber(n) {
+    if (typeof n !== "number") return n;
+    return Math.round(n).toLocaleString();
+}
+
+function formatFloat(n, decimals = 2) {
+    if (typeof n !== "number") return n;
+    return n.toFixed(decimals);
+}
+
+function iconArrowUp() {
+    return `<span class="icon">⬆️</span>`;
+}
+
+function iconArrowDown() {
+    return `<span class="icon">⬇️</span>`;
+}
+
+/* -------------------------
+   Stats Updater
+------------------------- */
+async function updateStats() {
+    try {
+        const res = await fetch("http://10.0.0.26:8000/stats");
+        const data = await res.json();
+
+        const table = document.getElementById("statsTable");
+        table.innerHTML = "";
+
+        const port0 = data["0"];
+        const global = data["global"];
+
+        const txActive = port0.tx_pps > 0;
+        const rxActive = port0.rx_pps > 0;
+
+        const rows = [
+            [iconArrowUp() + "TX PPS", formatNumber(port0.tx_pps), txActive ? "status-ok" : "status-idle"],
+            [iconArrowDown() + "RX PPS", formatNumber(port0.rx_pps), rxActive ? "status-ok" : "status-idle"],
+            [iconArrowUp() + "TX BPS", formatNumber(port0.tx_bps), txActive ? "status-ok" : "status-idle"],
+            [iconArrowDown() + "RX BPS", formatNumber(port0.rx_bps), rxActive ? "status-ok" : "status-idle"],
+            ["CPU Util", formatFloat(global.cpu_util, 1) + "%", global.cpu_util > 10 ? "status-ok" : "status-idle"],
+            ["RX CPU Util", formatFloat(global.rx_cpu_util, 1) + "%", global.rx_cpu_util > 10 ? "status-ok" : "status-idle"]
+        ];
+
+        rows.forEach(([label, value, css]) => {
+            table.innerHTML += `
+                <tr>
+                    <td><b>${label}</b></td>
+                    <td class="${css}">${value}</td>
+                </tr>
+            `;
+        });
+
+    } catch (e) {
+        console.log("Stats error:", e);
+    }
+}
+
+setInterval(updateStats, 1000);
+updateStats();
+</script>
+
+</body>
+</html>

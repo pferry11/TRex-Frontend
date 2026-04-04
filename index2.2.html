@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TRex Dashboard</title>
+    <style>
+.value-cell {
+    text-align: right;
+    width: 140px;
+}	
+	
+.controls-bar {
+    background: #1a1a1a;
+    padding: 15px 20px;
+    border-bottom: 2px solid #333;
+    border-radius: 0 0 8px 8px; /* rounded bottom corners */
+    display: flex;
+    gap: 10px;
+    justify-content: flex-start;
+    align-items: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4); /* subtle depth */
+}
+
+.controls-bar button {
+    background: #2a2a2a;
+    color: #fff;
+    border: 1px solid #444;
+    padding: 10px 22px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 15px;
+    transition: background 0.2s, transform 0.1s;
+}
+
+.controls-bar button:hover {
+    background: #3a3a3a;
+}
+
+.controls-bar button:active {
+    transform: scale(0.97);
+}
+
+.row-3col {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 20px;
+    padding: 20px;
+}
+	.value-cell {
+    text-align: right;
+    width: 120px;
+}
+
+.fade {
+    animation: subtlePulse 0.25s ease-out;
+}
+
+@keyframes subtlePulse {
+    0%   { opacity: 0.85; }
+    100% { opacity: 1; }
+}
+
+
+        /* Status colours */
+        .status-ok { color: #4caf50; }
+        .status-idle { color: #888; }
+        .status-warn { color: #ff9800; }
+
+        /* Icons */
+        .icon { margin-right: 6px; opacity: 0.8; }
+
+
+
+        /* Layout */
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #0d0d0d;
+            color: #e0e0e0;
+        }
+
+        header {
+            background: #1a1a1a;
+            padding: 15px;
+            font-size: 22px;
+            font-weight: bold;
+            text-align: center;
+            border-bottom: 2px solid #333;
+        }
+
+        .running-banner {
+            background: #0f3;
+            color: #000;
+            text-align: center;
+            padding: 10px;
+            font-weight: bold;
+            display: none;
+        }
+
+        .container {
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        .panel {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 8px;
+            flex: 1;
+        }
+
+        .controls button {
+            background: #333;
+            color: #fff;
+            border: none;
+            padding: 10px 20px;
+            margin-right: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+
+        .controls button:hover { background: #444; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        table td {
+            padding: 6px;
+            border-bottom: 1px solid #333;
+        }
+
+        .placeholder {
+            margin: 20px;
+            padding: 40px;
+            background: #1a1a1a;
+            border-radius: 8px;
+            text-align: center;
+            color: #555;
+            font-style: italic;
+        }
+
+        .link-up { color: #4caf50; font-weight: bold; }
+        .link-down { color: #f44336; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<header>TRex Traffic Dashboard</header>
+
+<div id="runningBanner" class="running-banner">TRAFFIC RUNNING</div>
+
+<div class="controls-bar">
+    <button onclick="startTraffic()">Start</button>
+    <button onclick="stopTraffic()">Stop</button>
+</div>
+
+<div class="row-3col">
+
+    <!-- System Info Panel -->
+    <div class="panel" id="systemInfo">
+        <h3>System Info</h3>
+        <table id="systemTable"></table>
+    </div>
+
+    <!-- Port 0 Stats -->
+    <div class="panel">
+        <h3>Port 0 <span id="link0"></span></h3>
+        <table id="stats0"></table>
+    </div>
+
+    <!-- Port 1 Stats -->
+    <div class="panel">
+        <h3>Port 1 <span id="link1"></span></h3>
+        <table id="stats1"></table>
+    </div>
+
+</div>
+
+<div class="placeholder">Graphs will go here in V3</div>
+
+<script>
+let lastStats = { 0: {}, 1: {} };
+let trafficTimeout = null;
+
+function startTraffic() { fetch("http://10.0.0.26:8000/start"); }
+function stopTraffic() { fetch("http://10.0.0.26:8000/stop"); }
+
+function formatNumber(n) {
+    if (typeof n !== "number") return n;
+    return Math.round(n).toLocaleString();
+}
+function formatFloat(n, decimals = 2) {
+    if (typeof n !== "number") return n;
+    return n.toFixed(decimals);
+}
+
+function iconUp() { return `<span class="icon">⬆️</span>`; }
+function iconDown() { return `<span class="icon">⬇️</span>`; }
+
+async function updateStats() {
+    try {
+        const res = await fetch("http://10.0.0.26:8000/stats");
+        const data = await res.json();
+
+        updatePort(0, data["0"]);
+        updatePort(1, data["1"]);
+		updateSystemInfo(data["global"]);
+
+        // Traffic running logic
+        const running = data["0"].tx_pps > 100 || data["1"].tx_pps > 100;
+
+        if (running) {
+            document.getElementById("runningBanner").style.display = "block";
+
+            // Reset timeout
+            clearTimeout(trafficTimeout);
+            trafficTimeout = setTimeout(() => {
+                document.getElementById("runningBanner").style.display = "none";
+            }, 2000);
+        }
+
+    } catch (e) {
+        console.log("Stats error:", e);
+    }
+}
+
+function updatePort(port, stats) {
+    const table = document.getElementById("stats" + port);
+    const link = document.getElementById("link" + port);
+
+    table.innerHTML = "";
+
+    // Determine link state
+    let linkHTML = "";
+    if (stats.link === true) {
+        linkHTML = `<span class="link-up">🟢 UP</span>`;
+    } else if (stats.tx_pps > 0 || stats.rx_pps > 0) {
+        linkHTML = `<span class="status-warn">🟡 LOOPBACK</span>`;
+    } else {
+        linkHTML = `<span class="link-down">🔴 DOWN</span>`;
+    }
+    link.innerHTML = linkHTML;
+
+    const rows = [
+        [iconUp() + "TX PPS", formatNumber(stats.tx_pps), stats.tx_pps > 0],
+        [iconDown() + "RX PPS", formatNumber(stats.rx_pps), stats.rx_pps > 0],
+        [iconUp() + "TX BPS", formatNumber(stats.tx_bps), stats.tx_bps > 0],
+        [iconDown() + "RX BPS", formatNumber(stats.rx_bps), stats.rx_bps > 0],
+        ["TX Util (L1)", formatFloat(stats.tx_util, 2), stats.tx_util > 0],
+        ["RX Util (L1)", formatFloat(stats.rx_util, 2), stats.rx_util > 0]
+    ];
+
+    rows.forEach(([label, value, active], index) => {
+    const prev = lastStats[port][index];
+    const changed = prev !== value;
+
+    table.innerHTML += `
+        <tr>
+            <td><b>${label}</b></td>
+            <td class="value-cell ${active ? 'status-ok' : 'status-idle'} ${changed ? 'fade' : ''}">
+                ${value}
+            </td>
+        </tr>
+    `;
+
+    lastStats[port][index] = value;
+});
+}
+
+function updateSystemInfo(global) {
+    const table = document.getElementById("systemTable");
+    table.innerHTML = "";
+
+    const drops = global.err_cntrs ? global.err_cntrs.rx_err : 0;
+    const errors = global.err_cntrs ? global.err_cntrs.tx_err : 0;
+
+    const rows = [
+        ["CPU Util", formatFloat(global.cpu_util, 1) + "%"],
+        ["RX CPU Util", formatFloat(global.rx_cpu_util, 1) + "%"],
+        ["TX Packets", formatNumber(global.opackets)],
+        ["RX Packets", formatNumber(global.ipackets)],
+        ["TX Bytes", formatNumber(global.obytes)],
+        ["RX Bytes", formatNumber(global.ibytes)],
+        ["Dropped Packets", formatNumber(drops)],
+        ["Errors", formatNumber(errors)]
+    ];
+
+    rows.forEach(([label, value]) => {
+        table.innerHTML += `
+            <tr>
+                <td><b>${label}</b></td>
+                <td class="value-cell fade">${value}</td>
+            </tr>
+        `;
+    });
+}
+
+setInterval(updateStats, 1000);
+updateStats();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>TRex Live Stats</title>
+    <style>
+        body { font-family: Arial; background: #111; color: #0f0; }
+        pre { font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<button onclick="startTraffic()">Start Traffic</button>
+<button onclick="stopTraffic()">Stop Traffic</button>
+
+<h2>TRex Live Stats</h2>
+<pre id="output">Loading...</pre>
+
+<script>
+
+// ----------------------
+// Start / Stop functions
+// ----------------------
+function startTraffic() {
+    fetch("http://10.0.0.26:8000/start")
+        .then(r => r.json())
+        .then(d => console.log("Started:", d))
+        .catch(err => console.error("Start error:", err));
+}
+
+function stopTraffic() {
+    fetch("http://10.0.0.26:8000/stop")
+        .then(r => r.json())
+        .then(d => console.log("Stopped:", d))
+        .catch(err => console.error("Stop error:", err));
+}
+
+// ----------------------
+// Stats polling
+// ----------------------
+async function updateStats() {
+    try {
+        const res = await fetch("http://10.0.0.26:8000/stats");
+        const data = await res.json();
+        document.getElementById("output").textContent =
+            JSON.stringify(data, null, 2);
+    } catch (e) {
+        document.getElementById("output").textContent = "Error fetching stats";
+    }
+}
+
+setInterval(updateStats, 1000);
+updateStats();
+
+</script>
+
+</body>
+</html>
