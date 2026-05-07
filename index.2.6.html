@@ -464,8 +464,8 @@ function updateRawStats(data) {
     };
 
     const format = (value) => value === undefined || value === null ? "-" : String(value);
-    const labelWidth = 14;
-    const portWidth = 30;
+    const labelWidth = 10;
+    const portWidth = 25;
     const pad = (value, width = labelWidth, align = "left") => {
         const text = format(value);
         if (align === "right") return text.padStart(width);
@@ -482,7 +482,7 @@ function updateRawStats(data) {
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
     const wrap = (value, className) => `<span class="${className}">${escapeHtml(value)}</span>`;
-    const separator = () => `${pad("", labelWidth, "left").replace(/./g, " ")}|${pad("", portWidth, "left").replace(/./g, " ")}|${pad("", portWidth, "left").replace(/./g, " ")}|${pad("", portWidth, "left").replace(/./g, " ")}`;
+    const separator = () => `${pad("", labelWidth, "left").replace(/./g, " ")} |${pad("", portWidth, "left").replace(/./g, " ")} |${pad("", portWidth, "left").replace(/./g, " ")} |${pad("", portWidth, "left").replace(/./g, " ")}`;
 
     const connectionText = baseUrl ? baseUrl.replace(/^https?:\/\//, "") : "-";
     const cpuCores = g.cpu_cores !== undefined ? g.cpu_cores : "?";
@@ -506,11 +506,11 @@ function updateRawStats(data) {
     lines.push("");
     lines.push(`<span class="raw-heading">Port Statistics</span>`);
     lines.push("");
-    lines.push(`${pad("port", labelWidth, "center")}|${pad("0", portWidth, "center")}|${pad("1", portWidth, "center")}|${pad("total", portWidth, "center")}`);
-    lines.push(`${pad("", labelWidth, "left").replace(/./g, "-")}|${pad("", portWidth, "left").replace(/./g, "-")}|${pad("", portWidth, "left").replace(/./g, "-")}|${pad("", portWidth, "left").replace(/./g, "-")}`);
+    lines.push(`${pad("port", labelWidth, "center")} |${pad("0", portWidth, "center")} |${pad("1", portWidth, "center")} |${pad("total", portWidth, "center")}`);
+    lines.push(`${pad("", labelWidth, "left").replace(/./g, "-")} +${pad("", portWidth, "left").replace(/./g, "-")} +${pad("", portWidth, "left").replace(/./g, "-")} +${pad("", portWidth, "left").replace(/./g, "-")}`);
 
     const rows = [
-        ["owner", "root", "root", "root"],
+        ["owner", "root", "root", ""],
         ["link", p0.link === true ? "UP" : p0.link === false ? "DOWN" : "-", p1.link === true ? "UP" : p1.link === false ? "DOWN" : "-", ""],
         ["state", format(p0.state || "IDLE"), format(p1.state || "IDLE"), ""],
         ["speed", format(p0.speed || "10 Gb/s"), format(p1.speed || "10 Gb/s"), ""],
@@ -523,6 +523,7 @@ function updateRawStats(data) {
         ["---", "", "", ""],
         ["Rx bps", format(p0.rx_bps || 0) + " bps", format(p1.rx_bps || 0) + " bps", format(total("rx_bps")) + " bps"],
         ["Rx pps", format(p0.rx_pps || 0) + " pps", format(p1.rx_pps || 0) + " pps", format(total("rx_pps")) + " pps"],
+        ["----", "", "", ""],
         ["opackets", format(p0.opackets || 0), format(p1.opackets || 0), format(total("opackets"))],
         ["ipackets", format(p0.ipackets || 0), format(p1.ipackets || 0), format(total("ipackets"))],
         ["obytes", format(p0.obytes || 0), format(p1.obytes || 0), format(total("obytes"))],
@@ -531,7 +532,7 @@ function updateRawStats(data) {
         ["rx-pkts", format(p0.rx_pkts || p0.rx_pkts === 0 ? p0.rx_pkts : 0), format(p1.rx_pkts || p1.rx_pkts === 0 ? p1.rx_pkts : 0), format(total("rx_pkts"))],
         ["tx-bytes", format(p0.tx_bytes || 0), format(p1.tx_bytes || 0), format(total("tx_bytes"))],
         ["rx-bytes", format(p0.rx_bytes || 0), format(p1.rx_bytes || 0), format(total("rx_bytes"))],
-        ["----", "", "", ""],
+        ["-----", "", "", ""],
         ["errors", format(p0.errors || 0), format(p1.errors || 0), format(total("errors"))],
         ["ierrors", format(p0.ierrors || 0), format(p1.ierrors || 0), format(total("ierrors"))]
     ];
@@ -544,10 +545,10 @@ function updateRawStats(data) {
     };
 
     rows.forEach(([label, c0, c1, totalValue, addBlank]) => {
-        const c0Raw = label === "errors" ? p0.errors || 0 : label === "ierrors" ? p0.ierrors || 0 : 0;
+        const c0Raw = label === "errors" ? p0.errors || 0 : label === "ierrors" ? p1.ierrors || 0 : 0;
         const c1Raw = label === "errors" ? p1.errors || 0 : label === "ierrors" ? p1.ierrors || 0 : 0;
         const totalRaw = label === "errors" || label === "ierrors" ? total(label) : 0;
-        lines.push(`${escapeHtml(pad(label, labelWidth))}|${wrapAlertValue(label, pad(c0, portWidth), c0Raw)}|${wrapAlertValue(label, pad(c1, portWidth), c1Raw)}|${wrapAlertValue(label, pad(totalValue, portWidth), totalRaw)}`);
+        lines.push(`${escapeHtml(pad(label, labelWidth))} |${wrapAlertValue(label, pad(c0, portWidth, "right"), c0Raw)} |${wrapAlertValue(label, pad(c1, portWidth, "right"), c1Raw)} |${wrapAlertValue(label, pad(totalValue, portWidth, "right"), totalRaw)}`);
         if (addBlank) {
             lines.push(separator());
         }
