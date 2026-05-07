@@ -507,7 +507,7 @@ function updateRawStats(data) {
     lines.push(`<span class="raw-heading">Port Statistics</span>`);
     lines.push("");
     lines.push(`${pad("port", labelWidth, "center")} |${pad("0", portWidth, "center")} |${pad("1", portWidth, "center")} |${pad("total", portWidth, "center")}`);
-    lines.push(`${pad("", labelWidth, "left").replace(/./g, "-")} +${pad("", portWidth, "left").replace(/./g, "-")} +${pad("", portWidth, "left").replace(/./g, "-")} +${pad("", portWidth, "left").replace(/./g, "-")}`);
+    lines.push(`${pad("", labelWidth + 1, "left").replace(/./g, "-")}+${pad("", portWidth + 1, "left").replace(/./g, "-")}+${pad("", portWidth + 1, "left").replace(/./g, "-")}+${pad("", portWidth + 1, "left").replace(/./g, "-")}`);
 
     const rows = [
         ["owner", "root", "root", ""],
