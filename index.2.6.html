@@ -164,6 +164,18 @@
 
         .link-up { color: #4caf50; font-weight: bold; }
         .link-down { color: #f44336; font-weight: bold; }
+
+        .raw-view {
+            font-family: Consolas, "Liberation Mono", Menlo, monospace;
+            white-space: pre;
+            color: #d8d8d8;
+            background: #111;
+            padding: 18px;
+            border-radius: 8px;
+            min-height: 360px;
+            overflow-x: auto;
+            line-height: 1.4;
+        }
     </style>
 </head>
 <body>
@@ -218,30 +230,35 @@
     <!-- Buttons -->
     <button onclick="startTraffic()" disabled>Start</button>
     <button onclick="stopTraffic()" disabled>Stop</button>
+    <button id="toggleViewBtn" onclick="toggleViewMode()">Raw View</button>
     </div>
 </div>
 
-<div class="row-3col">
-
-    <!-- System Info Panel -->
-    <div class="panel" id="systemInfo">
-        <h3>System Info</h3>
-        <table id="systemTable"></table>
+<div id="summaryView">
+    <div class="row-3col">
+        <!-- System Info Panel -->
+        <div class="panel" id="systemInfo">
+            <h3>System Info</h3>
+            <table id="systemTable"></table>
+        </div>
+        <!-- Port 0 Stats -->
+        <div class="panel">
+            <h3>Port 0 <span id="link0"></span></h3>
+            <table id="stats0"></table>
+        </div>
+        <!-- Port 1 Stats -->
+        <div class="panel">
+            <h3>Port 1 <span id="link1"></span></h3>
+            <table id="stats1"></table>
+        </div>
     </div>
-
-    <!-- Port 0 Stats -->
-    <div class="panel">
-        <h3>Port 0 <span id="link0"></span></h3>
-        <table id="stats0"></table>
-    </div>
-
-    <!-- Port 1 Stats -->
-    <div class="panel">
-        <h3>Port 1 <span id="link1"></span></h3>
-        <table id="stats1"></table>
-    </div>
-
 </div>
+<div id="rawView" style="display:none;">
+        <div class="panel">
+            <h3>Raw TRex Stats</h3>
+            <pre id="rawStatsPre" class="raw-view"></pre>
+        </div>
+    </div>
 
 <div class="placeholder">Graphs will go here in V3</div>
 
@@ -407,6 +424,7 @@ async function updateStats() {
         updatePort(0, data["0"]);
         updatePort(1, data["1"]);
         updateSystemInfo(data["global"]);
+        updateRawStats(data);
 
         const running = data["0"].tx_pps > 100 || data["1"].tx_pps > 100;
 
@@ -422,6 +440,80 @@ async function updateStats() {
     } catch (e) {
         console.log("Stats error:", e);
     }
+}
+
+function updateRawStats(data) {
+    const rawPre = document.getElementById("rawStatsPre");
+    if (!rawPre) return;
+
+    if (!data) {
+        rawPre.textContent = "No raw stats available";
+        return;
+    }
+
+    const g = data.global || {};
+    const p0 = data["0"] || {};
+    const p1 = data["1"] || {};
+    const total = (key) => {
+        const a = Number(p0[key] || 0);
+        const b = Number(p1[key] || 0);
+        return a + b;
+    };
+
+    const format = (value) => value === undefined || value === null ? "-" : String(value);
+    const pad = (value, width = 24, align = "left") => {
+        const text = format(value);
+        return align === "right" ? text.padStart(width) : text.padEnd(width);
+    };
+
+    const connectionText = baseUrl ? baseUrl.replace(/^https?:\/\//, "") : "-";
+    const cpuCores = g.cpu_cores !== undefined ? g.cpu_cores : "?";
+    const rxCpuUtil = g.rx_cpu_util !== undefined ? `${g.rx_cpu_util}%` : "-";
+    const asyncUtil = g.async_util !== undefined ? `${g.async_util}%` : "-";
+
+    const lines = [];
+    lines.push("Global Statistics");
+    lines.push(`${pad(`connection : ${connectionText}`, 40)}|${pad(`Total_CPUs : ${cpuCores}`, 40)}`);
+    lines.push(`${pad(`total_tx_L2 : ${format(g.total_tx_L2 || 0)} bps`, 40)}|${pad(`queue_full : ${format(g.queue_full || 0)} pkts`, 40)}`);
+    lines.push(`${pad(`version : ${format(g.version || "STL @ v3.06")}`, 40)}|${pad(`total.cps : ${format(g.total_cps || 0)} cps`, 40)}`);
+    lines.push(`${pad(`cpu.util : ${format(g.cpu_util !== undefined ? g.cpu_util + "%" : "0.0%")}`, 40)}|${pad(`rx_cpu.util : ${rxCpuUtil}`, 40)}`);
+    lines.push(`${pad(`async.util : ${asyncUtil}`, 40)}|${pad(`total.rx : ${format(g.total_rx || 0)} bps`, 40)}`);
+    lines.push(`${pad(`total.tx_L1 : ${format(g.total_tx_L1 || 0)} bps`, 40)}|${pad(`total.pps : ${format(g.total_pps || 0)} pps`, 40)}`);
+    lines.push(`${pad(`drop_rate : ${format(g.drop_rate || 0)} bps`, 40)}|${pad(``, 40)}`);
+    lines.push("");
+    lines.push("Port Statistics");
+    lines.push(`${pad("port", 24)}|${pad("0", 24)}|${pad("1", 24)}|${pad("total", 24)}`);
+    lines.push(`${pad("", 24, "left").replace(/./g, "-")}+${pad("", 24, "left").replace(/./g, "-")}+${pad("", 24, "left").replace(/./g, "-")}+${pad("", 24, "left").replace(/./g, "-")}`);
+
+    const rows = [
+        ["owner", "root", "root", "root"],
+        ["link", p0.link === true ? "UP" : p0.link === false ? "DOWN" : "-", p1.link === true ? "UP" : p1.link === false ? "DOWN" : "-", ""],
+        ["state", format(p0.state || "IDLE"), format(p1.state || "IDLE"), ""],
+        ["speed", format(p0.speed || "10 Gb/s"), format(p1.speed || "10 Gb/s"), ""],
+        ["cpu.util", format(p0.cpu_util !== undefined ? p0.cpu_util + "%" : "0%"), format(p1.cpu_util !== undefined ? p1.cpu_util + "%" : "0%"), ""],
+        ["Tx bps L2", format(p0.tx_bps || 0) + " bps", format(p1.tx_bps || 0) + " bps", format(total("tx_bps")) + " bps"],
+        ["Tx bps L1", format(p0.tx_bps || 0) + " bps", format(p1.tx_bps || 0) + " bps", format(total("tx_bps")) + " bps"],
+        ["Tx pps", format(p0.tx_pps || 0) + " pps", format(p1.tx_pps || 0) + " pps", format(total("tx_pps")) + " pps"],
+        ["Line Util", format(p0.tx_util !== undefined ? p0.tx_util + "%" : "0%"), format(p1.tx_util !== undefined ? p1.tx_util + "%" : "0%"), ""],
+        ["Rx bps", format(p0.rx_bps || 0) + " bps", format(p1.rx_bps || 0) + " bps", format(total("rx_bps")) + " bps"],
+        ["Rx pps", format(p0.rx_pps || 0) + " pps", format(p1.rx_pps || 0) + " pps", format(total("rx_pps")) + " pps"],
+        ["opackets", format(p0.opackets || 0), format(p1.opackets || 0), format(total("opackets"))],
+        ["ipackets", format(p0.ipackets || 0), format(p1.ipackets || 0), format(total("ipackets"))],
+        ["obytes", format(p0.obytes || 0), format(p1.obytes || 0), format(total("obytes"))],
+        ["ibytes", format(p0.ibytes || 0), format(p1.ibytes || 0), format(total("ibytes"))],
+        ["tx-pkts", format(p0.tx_pkts || p0.tx_pkts === 0 ? p0.tx_pkts : 0), format(p1.tx_pkts || p1.tx_pkts === 0 ? p1.tx_pkts : 0), ""],
+        ["rx-pkts", format(p0.rx_pkts || p0.rx_pkts === 0 ? p0.rx_pkts : 0), format(p1.rx_pkts || p1.rx_pkts === 0 ? p1.rx_pkts : 0), format(total("rx_pkts"))],
+        ["tx-bytes", format(p0.tx_bytes || 0), format(p1.tx_bytes || 0), format(total("tx_bytes"))],
+        ["rx-bytes", format(p0.rx_bytes || 0), format(p1.rx_bytes || 0), format(total("rx_bytes"))],
+        ["errors", format(p0.errors || 0), format(p1.errors || 0), format(total("errors"))],
+        ["ierrors", format(p0.ierrors || 0), format(p1.ierrors || 0), format(total("ierrors"))]
+    ];
+
+    rows.forEach(([label, c0, c1, totalValue]) => {
+        lines.push(`${pad(label, 24)}|${pad(c0, 24)}|${pad(c1, 24)}|${pad(totalValue, 24)}`);
+    });
+
+    rawPre.textContent = lines.join("\n");
 }
 
 function updatePort(port, stats) {
@@ -574,7 +666,29 @@ durationInput.addEventListener("input", () => {
 window.addEventListener("DOMContentLoaded", () => {
     enableContinuousMode();
     setControlsEnabled(false);
+    const toggleBtn = document.getElementById("toggleViewBtn");
+    if (toggleBtn) toggleBtn.textContent = "Raw View";
 });
+
+let viewMode = "summary";
+
+function toggleViewMode() {
+    const summaryView = document.getElementById("summaryView");
+    const rawView = document.getElementById("rawView");
+    const toggleBtn = document.getElementById("toggleViewBtn");
+
+    if (viewMode === "summary") {
+        viewMode = "raw";
+        summaryView.style.display = "none";
+        rawView.style.display = "block";
+        if (toggleBtn) toggleBtn.textContent = "Summary View";
+    } else {
+        viewMode = "summary";
+        summaryView.style.display = "block";
+        rawView.style.display = "none";
+        if (toggleBtn) toggleBtn.textContent = "Raw View";
+    }
+}
 
 </script>
 
